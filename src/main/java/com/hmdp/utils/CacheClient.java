@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static com.hmdp.utils.RedisConstants.*;
 
@@ -54,28 +55,30 @@ public class CacheClient {
      * 防止【缓存穿透】地获取数据  (返回空值)
      * 使用注解完成该任务  好好学!
      **/
-    public Shop queryWithPassThrough(Long id) {
-        String key = CACHE_SHOP_KEY + id;
+    public <R, ID> R queryWithPassThrough(
+            String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallBack, Long time, TimeUnit unit) {
+
         // 从Redis查询商铺缓存
-        String shopJson = stringRedisTemplate.opsForValue().get(key);
+        String key = keyPrefix + id;
+        String json = stringRedisTemplate.opsForValue().get(key);
 
         // 判断缓存是否命中
-        if (StrUtil.isNotBlank(shopJson)) {
+        if (StrUtil.isNotBlank(json)) {
             // redis中有这个数据，直接返回
             // 因为这里是一个string，得先反序列化为对象
-            Shop cacheShop = JSONUtil.toBean(shopJson, Shop.class);
-            return cacheShop;
+            R r = JSONUtil.toBean(json, type);
+            return r;
         }
 
         // 【防止内存穿透】 上面if下来后，可能为  null "" /n  这类
         //  所以防止内存穿透往redis中放的“”  就有可能走下来，但是不能让这类值去查询数据库
-        if (shopJson != null)       // != null 就说明这个值为 "" 空字符串(防止缓存击穿设置的值)
+        if (json != null)       // != null 就说明这个值为 "" 空字符串(防止缓存击穿设置的值)
             return null;
 
         // 查询数据库
         // redis中没有这个数据，去数据库拿
-        Shop databaseShop = query().eq("id", id).one();
-        if (databaseShop == null) {
+        R r = dbFallBack.apply(id);
+        if (r == null) {
             // 【防止内存穿透】 将空值写入redis
             stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
 
@@ -84,9 +87,9 @@ public class CacheClient {
         }
 
         // 把这个商户存到redis中
-        stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(databaseShop), CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(r), time, unit);
 
-        return databaseShop;
+        return r;
     }
 
     /**
