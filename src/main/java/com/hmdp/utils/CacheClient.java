@@ -52,7 +52,7 @@ public class CacheClient {
 
     /**
      * 防止【缓存穿透】地获取数据  (返回空值)
-     * 使用注解完成该任务  好好学
+     * 使用注解完成该任务  好好学!
      **/
     public Shop queryWithPassThrough(Long id) {
         String key = CACHE_SHOP_KEY + id;
