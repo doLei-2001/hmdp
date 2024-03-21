@@ -10,6 +10,9 @@ import javax.annotation.Resource;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 为防止并发安全问题，推出的 获取锁/释放锁 操作工具类
+ **/
 public class SimpleRedisLock implements ILock{
 
     private StringRedisTemplate stringRedisTemplate;
